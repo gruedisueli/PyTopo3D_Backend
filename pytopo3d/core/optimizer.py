@@ -63,6 +63,8 @@ def top3d(
     save_history: bool = False,
     history_frequency: int = 10,
     use_gpu: bool = False,
+    callback: Optional[callable] = None,
+    stop_event: Optional[callable] = None,
 ) -> Union[np.ndarray, Tuple[np.ndarray, Dict[str, Any]]]:
     # ─────────────────────── setup
     gpu = HAS_CUPY and use_gpu
@@ -265,6 +267,14 @@ def top3d(
             f"Vol={current_vol:6.3f}, change={change:6.3f}, "
             f"time={iter_t:5.2f}s"
         )
+
+        if callback is not None:
+            #send current iteration data back
+            callback(cp.asnumpy(xPhys_gpu) if gpu else xPhys.copy())
+
+        if stop_event is not None and stop_event.is_set():
+            logger.info("Stop event detected – terminating optimization loop.")
+            break
 
     # ─────────────────────── final output
     final_xPhys = cp.asnumpy(xPhys_gpu) if gpu else xPhys

@@ -109,6 +109,8 @@ def execute_optimization(
     logger: logging.Logger = None,
     combined_obstacle_mask: Optional[np.ndarray] = None,
     use_gpu: bool = False,
+    callback: Optional[callable] = None,
+    stop_event: Optional[callable] = None,
 ) -> Tuple[np.ndarray, Optional[Dict], float]:
     """
     Run the topology optimization process.
@@ -130,6 +132,8 @@ def execute_optimization(
         logger: Configured logger
         combined_obstacle_mask: Combined obstacle and design space mask
         use_gpu: Whether to use GPU acceleration if available
+        callback: Optional callback function to be called after each iteration
+        stop_event: Optional event to signal stopping the optimization loop
 
     Returns:
         Tuple containing optimization result, history (if saved), and runtime in seconds
@@ -172,6 +176,8 @@ def execute_optimization(
         save_history=create_animation,
         history_frequency=animation_frequency,
         use_gpu=use_gpu,
+        callback=callback,
+        stop_event=stop_event,
     )
 
     # Check if we got history back

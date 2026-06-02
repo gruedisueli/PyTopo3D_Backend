@@ -122,6 +122,8 @@ def main():
             logger=logger,
             combined_obstacle_mask=combined_obstacle_mask,
             use_gpu=args.gpu,
+            callback=getattr(args, "callback", None),
+            stop_event=getattr(args, "stop_event", None),  
         )
 
         # Save the result to the experiment directory
