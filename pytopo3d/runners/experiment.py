@@ -16,6 +16,8 @@ from pytopo3d.utils.export import voxel_to_stl
 from pytopo3d.utils.logger import setup_logger
 from pytopo3d.utils.results_manager import ResultsManager
 
+import threading
+
 
 def setup_experiment(
     verbose: bool = False,
@@ -110,7 +112,7 @@ def execute_optimization(
     combined_obstacle_mask: Optional[np.ndarray] = None,
     use_gpu: bool = False,
     callback: Optional[callable] = None,
-    stop_event: Optional[callable] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> Tuple[np.ndarray, Optional[Dict], float]:
     """
     Run the topology optimization process.

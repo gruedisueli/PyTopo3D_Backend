@@ -18,6 +18,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 import numpy as np
 import scipy.sparse as sp
 import matplotlib.pyplot as plt
+import threading
 
 from pytopo3d.core.compliance import element_compliance
 from pytopo3d.utils.assembly import build_edof, build_force_vector, build_supports
@@ -64,7 +65,7 @@ def top3d(
     history_frequency: int = 10,
     use_gpu: bool = False,
     callback: Optional[callable] = None,
-    stop_event: Optional[callable] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> Union[np.ndarray, Tuple[np.ndarray, Dict[str, Any]]]:
     # ─────────────────────── setup
     gpu = HAS_CUPY and use_gpu
@@ -267,7 +268,6 @@ def top3d(
             f"Vol={current_vol:6.3f}, change={change:6.3f}, "
             f"time={iter_t:5.2f}s"
         )
-
         if callback is not None:
             #send current iteration data back
             callback(cp.asnumpy(xPhys_gpu) if gpu else xPhys.copy())

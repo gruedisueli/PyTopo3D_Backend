@@ -24,7 +24,34 @@ from pytopo3d.visualization.visualizer import (
 )
 
 
-def main():
+def run_optimization_api(args, callback=None, stop_event=None):
+    """
+    API function to run optimization with pre-built arguments.
+    
+    Args:
+        args: Pre-built arguments object (same structure as CLI args)
+        callback: Optional callback function for progress updates
+        stop_event: Optional event to signal stopping of the optimization
+        
+    Returns:
+        dict: A dictionary containing the results and metrics of the optimization run.
+    """
+
+    # Call the main function with the provided args
+    result = main(args=args, callback=callback, stop_event=stop_event)
+    
+    # Collect results and metrics into a dictionary to return
+    output = {
+        "result": result,
+        # Additional fields can be added here as needed, such as:
+        # "optimized_design": xPhys,
+        # "metrics": metrics,
+        # "experiment_dir": results_mgr.experiment_dir,
+    }
+    
+    return output
+
+def main(args=None, callback=None, stop_event=None):
     """
     Main function to run the optimization from command-line arguments.
     """
@@ -122,8 +149,8 @@ def main():
             logger=logger,
             combined_obstacle_mask=combined_obstacle_mask,
             use_gpu=args.gpu,
-            callback=getattr(args, "callback", None),
-            stop_event=getattr(args, "stop_event", None),  
+            callback=callback,
+            stop_event=stop_event,  
         )
 
         # Save the result to the experiment directory
