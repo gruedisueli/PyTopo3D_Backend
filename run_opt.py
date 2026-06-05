@@ -24,21 +24,31 @@ from pytopo3d.visualization.visualizer import (
 )
 
 
-def run_optimization_api(args, callback=None, stop_event=None):
+def run_optimization_api(args:dict, callback=None, stop_event=None):
     """
     API function to run optimization with pre-built arguments.
     
     Args:
-        args: Pre-built arguments object (same structure as CLI args)
+        args: Pre-built arguments dict (same structure as CLI args)
         callback: Optional callback function for progress updates
         stop_event: Optional event to signal stopping of the optimization
         
     Returns:
         dict: A dictionary containing the results and metrics of the optimization run.
     """
+    # Convert the dictionary to a list compatible with parse_args
+    arg_list = []
+    for key, value in args.items():
+        #convert boolean flags: --gpu becomes {--gpu, no value}
+        if isinstance(value, bool):
+            if value:
+                arg_list.append(f"--{key}")
+        else:
+            arg_list.append(f"--{key}")
+            arg_list.append(str(value))
 
     # Call the main function with the provided args
-    result = main(args=args, callback=callback, stop_event=stop_event)
+    result = main(args=parse_args(arg_list), callback=callback, stop_event=stop_event)
     
     # Collect results and metrics into a dictionary to return
     output = {
@@ -56,7 +66,7 @@ def main(args=None, callback=None, stop_event=None):
     Main function to run the optimization from command-line arguments.
     """
     # Parse command-line arguments
-    args = parse_args()
+    args = args or parse_args()
 
     try:
         # Setup experiment, logging and results manager
