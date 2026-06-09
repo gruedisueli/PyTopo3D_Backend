@@ -1,36 +1,36 @@
 """
-Utilities for creating obstacle masks for topology optimization.
+Utilities for creating masks for topology optimization.
 
-This module provides functions to create various obstacle shapes and to parse
-obstacle configuration files.
+This module provides functions to create various shapes and to parse
+geometry configuration files.
 """
 
 import json
 import numpy as np
 from typing import Dict, List, Tuple, Union, Optional
 
-def create_cube_obstacle(
+def create_cube(
     shape: Tuple[int, int, int],
     center: Tuple[float, float, float],
     size: Union[float, Tuple[float, float, float]]
 ) -> np.ndarray:
     """
-    Create a cube or cuboid obstacle mask.
+    Create a cube or cuboid mask.
     
     Parameters
     ----------
     shape : tuple of int
         Shape of the design domain (nely, nelx, nelz).
     center : tuple of float
-        Center coordinates of the obstacle as fractions [0-1] of domain size (x, y, z).
+        Center coordinates of the cube as fractions [0-1] of domain size (x, y, z).
     size : float or tuple of float
-        Size of the obstacle as fraction of domain size. If a single value, creates a cube.
+        Size of the cube as fraction of domain size. If a single value, creates a cube.
         If three values, creates a cuboid with (x, y, z) dimensions.
         
     Returns
     -------
     np.ndarray
-        Boolean mask with True values where the obstacle is located.
+        Boolean mask with True values where the cube is located.
     """
     nely, nelx, nelz = shape
     
@@ -60,27 +60,27 @@ def create_cube_obstacle(
     
     return mask
 
-def create_sphere_obstacle(
+def create_sphere(
     shape: Tuple[int, int, int],
     center: Tuple[float, float, float],
     radius: float
 ) -> np.ndarray:
     """
-    Create a spherical obstacle mask.
+    Create a spherical mask.
     
     Parameters
     ----------
     shape : tuple of int
         Shape of the design domain (nely, nelx, nelz).
     center : tuple of float
-        Center coordinates of the obstacle as fractions [0-1] of domain size (x, y, z).
+        Center coordinates of the sphere as fractions [0-1] of domain size (x, y, z).
     radius : float
         Radius of the sphere as a fraction of the smallest domain dimension.
         
     Returns
     -------
     np.ndarray
-        Boolean mask with True values where the obstacle is located.
+        Boolean mask with True values where the sphere is located.
     """
     nely, nelx, nelz = shape
     
@@ -107,7 +107,7 @@ def create_sphere_obstacle(
     
     return mask
 
-def create_cylinder_obstacle(
+def create_cylinder(
     shape: Tuple[int, int, int],
     center: Tuple[float, float, float],
     radius: float,
@@ -115,14 +115,14 @@ def create_cylinder_obstacle(
     axis: int = 2
 ) -> np.ndarray:
     """
-    Create a cylindrical obstacle mask.
+    Create a cylindrical mask.
     
     Parameters
     ----------
     shape : tuple of int
         Shape of the design domain (nely, nelx, nelz).
     center : tuple of float
-        Center coordinates of the obstacle as fractions [0-1] of domain size (x, y, z).
+        Center coordinates of the cylinder as fractions [0-1] of domain size (x, y, z).
     radius : float
         Radius of the cylinder as a fraction of the smallest domain dimension in the
         plane perpendicular to the cylinder axis.
@@ -134,7 +134,7 @@ def create_cylinder_obstacle(
     Returns
     -------
     np.ndarray
-        Boolean mask with True values where the obstacle is located.
+        Boolean mask with True values where the cylinder is located.
     """
     nely, nelx, nelz = shape
     dimensions = [nelx, nely, nelz]
@@ -192,54 +192,54 @@ def create_cylinder_obstacle(
     
     return mask
 
-def create_obstacle_from_config(
+def create_geometry_from_config(
     shape: Tuple[int, int, int],
     config: Dict
 ) -> np.ndarray:
     """
-    Create an obstacle mask from a configuration dictionary.
+    Create a geometry mask from a configuration dictionary.
     
     Parameters
     ----------
     shape : tuple of int
         Shape of the design domain (nely, nelx, nelz).
     config : dict
-        Configuration dictionary describing the obstacle.
+        Configuration dictionary describing the geometr.
         Must contain 'type' and other required parameters for that type.
         
     Returns
     -------
     np.ndarray
-        Boolean mask with True values where the obstacle is located.
+        Boolean mask with True values where the geometry is located.
     """
-    obstacle_type = config.get('type', '').lower()
+    geometry_type = config.get('type', '').lower()
     
-    if obstacle_type == 'cube':
+    if geometry_type == 'cube':
         center = config.get('center', [0.5, 0.5, 0.5])
         size = config.get('size', 0.2)
-        return create_cube_obstacle(shape, center, size)
+        return create_cube(shape, center, size)
     
-    elif obstacle_type == 'sphere':
+    elif geometry_type == 'sphere':
         center = config.get('center', [0.5, 0.5, 0.5])
         radius = config.get('radius', 0.2)
-        return create_sphere_obstacle(shape, center, radius)
+        return create_sphere(shape, center, radius)
     
-    elif obstacle_type == 'cylinder':
+    elif geometry_type == 'cylinder':
         center = config.get('center', [0.5, 0.5, 0.5])
         radius = config.get('radius', 0.2)
         height = config.get('height', 0.5)
         axis = config.get('axis', 2)
-        return create_cylinder_obstacle(shape, center, radius, height, axis)
+        return create_cylinder(shape, center, radius, height, axis)
     
     else:
-        raise ValueError(f"Unknown obstacle type: {obstacle_type}")
+        raise ValueError(f"Unknown geometry type: {geometry_type}")
 
-def parse_obstacle_config_file(
+def parse_geometry_config_file(
     config_file: str,
     shape: Tuple[int, int, int]
 ) -> np.ndarray:
     """
-    Parse a JSON configuration file and create an obstacle mask.
+    Parse a JSON configuration file and create a geometry mask.
     
     Parameters
     ----------
@@ -251,19 +251,87 @@ def parse_obstacle_config_file(
     Returns
     -------
     np.ndarray
-        Combined boolean mask with True values where any obstacle is located.
+        Combined boolean mask with True values where any geometry is located.
     """
     with open(config_file, 'r') as f:
         config = json.load(f)
     
-    # Create a mask with all False (no obstacles)
+    # Create a mask with all False (no geometry)
     combined_mask = np.zeros(shape, dtype=bool)
     
-    # Process each obstacle in the config
-    obstacles = config.get('obstacles', [])
-    for obstacle_config in obstacles:
-        mask = create_obstacle_from_config(shape, obstacle_config)
+    # Process each geometry in the config
+    geometry = config.get('geometry', [])
+    for geometry_config in geometry:
+        mask = create_geometry_from_config(shape, geometry_config)
         # Combine with OR operation
         combined_mask = np.logical_or(combined_mask, mask)
     
     return combined_mask 
+
+def parse_force_config_file(
+        config_file: str,
+        shape: Tuple[int, int, int]
+) -> np.ndarray:
+    """
+    Parse a JSON force configuration file and create a force field.
+    
+    Parameters
+    ----------
+    config_file : str
+        Path to the JSON configuration file.
+    shape : tuple of int
+        Shape of the design domain (nely, nelx, nelz).
+        
+    Returns
+    -------
+    np.ndarray
+        Array of xyz force values at each point in space
+    """
+
+    with open(config_file, 'r') as f:
+        config = json.load(f)
+    
+    # Create an empty force field
+    combined_field = np.zeros((shape[0], shape[1], shape[2], 3), dtype=float)
+    geometry = config.get('geometry', [])
+
+    for geometry_config in geometry:
+        # Get basic binary mask for this geometry entry
+        mask = create_geometry_from_config(shape, geometry_config)
+
+        # Determine force vector for this geometry entry.
+        # Supported formats in the geometry_config:
+        # - 'forces': [fx, fy, fz] (list/tuple of length 3)
+        if 'forces' in geometry_config:
+            fval = geometry_config.get('forces')
+            try:
+                fvec = np.asarray(fval, dtype=float)
+            except Exception:
+                raise ValueError(f"Invalid force specification: {fval}")
+
+            if fvec.size == 3:
+                fvec = fvec.reshape((3,))
+            else:
+                raise ValueError("'force' must be a scalar or length-3 sequence")
+        else:
+            continue
+
+        # Add the force vector to all positions where mask is True.
+        # Use boolean indexing to broadcast the 3-component vector.
+        if mask.dtype != bool:
+            mask = mask.astype(bool)
+
+        # Ensure mask shape matches the spatial dimensions
+        if mask.shape != (shape[0], shape[1], shape[2]):
+            raise ValueError(
+                f"Geometry mask shape {mask.shape} does not match expected shape {shape}"
+            )
+
+        # Accumulate forces at masked element positions
+        combined_field[mask, :] += fvec
+    
+    return combined_field
+        
+
+
+

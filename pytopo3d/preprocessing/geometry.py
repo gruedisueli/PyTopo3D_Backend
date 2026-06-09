@@ -13,7 +13,7 @@ import numpy as np
 
 from pytopo3d.utils.boundary import create_boundary_arrays
 from pytopo3d.utils.import_design_space import stl_to_design_space
-from pytopo3d.utils.obstacles import parse_obstacle_config_file
+from pytopo3d.utils.geometry_create import parse_geometry_config_file, parse_force_config_file
 from pytopo3d.utils.results_manager import ResultsManager
 from pytopo3d.visualization.runner import create_visualization
 
@@ -26,10 +26,12 @@ def load_geometry_data(
     pitch: float = 1.0,
     invert_design_space: bool = False,
     obstacle_config: Optional[str] = None,
+    force_config: Optional[str] = None,
+    support_config: Optional[str] = None,
     experiment_name: str = "experiment",
     logger: Optional[logging.Logger] = None,
     results_mgr: Optional[ResultsManager] = None,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Load design space and obstacle data.
 
@@ -41,12 +43,14 @@ def load_geometry_data(
         pitch: Voxelization pitch for STL
         invert_design_space: Whether to invert design space (STL represents void)
         obstacle_config: Path to obstacle configuration file
+        force_config: Path to the force configuration file
+        support_config: Path to the support configuration file
         experiment_name: Name of the experiment
         logger: Configured logger
         results_mgr: Results manager instance
 
     Returns:
-        Tuple containing design space mask, obstacle mask, and combined obstacle mask
+        Tuple containing design space mask, obstacle mask, combined obstacle mask, force field, support mask
     """
     # Handle design space from STL if provided
     design_space_mask = None
@@ -107,6 +111,66 @@ def load_geometry_data(
         if logger:
             logger.debug("No STL design space provided, using full rectangular domain")
         design_space_mask = np.ones((nely, nelx, nelz), dtype=bool)
+    
+    # create force field if requested
+    force_field = None
+
+    # Handle force config file case
+    if force_config:
+        try:
+            shape = (nely, nelx, nelz)
+            force_field = parse_force_config_file(force_config, shape) 
+            n_force_elements = np.count_nonzero(force_field)
+            if logger:
+                logger.info(
+                    f"Loaded {n_force_elements} force elements from {force_config}"
+                )
+
+            # Copy the force config file to the experiment directory if results_mgr is provided
+            if results_mgr:
+                results_mgr.copy_file(force_config, "force_config.json")
+                if logger:
+                    logger.debug("Copied force config file to experiment directory")
+
+        except Exception as e:
+            if logger:
+                logger.error(f"Error loading force configuration: {e}")
+            raise
+    else:
+        if logger:
+            logger.info(
+                "No force configuration provided, default forces will be created"
+            )
+
+    # create support mask if requested
+    support_mask = None
+
+    # Handle support config file case
+    if support_config:
+        try:
+            shape = (nely, nelx, nelz)
+            support_mask = parse_geometry_config_file(support_config, shape) #obstacles and supports can be processed the same way
+            n_support_elements = np.count_nonzero(support_mask)
+            if logger:
+                logger.info(
+                    f"Loaded {n_support_elements} support elements from {support_config}"
+                )
+
+            # Copy the support config file to the experiment directory if results_mgr is provided
+            if results_mgr:
+                results_mgr.copy_file(support_config, "support_config.json")
+                if logger:
+                    logger.debug("Copied support config file to experiment directory")
+
+        except Exception as e:
+            if logger:
+                logger.error(f"Error loading support configuration: {e}")
+            raise
+    else:
+        if logger:
+            logger.info(
+                "No support configuration provided, default supports will be created"
+            )
 
     # Create obstacle mask if requested
     obstacle_mask = None
@@ -115,7 +179,7 @@ def load_geometry_data(
     if obstacle_config:
         try:
             shape = (nely, nelx, nelz)
-            obstacle_mask = parse_obstacle_config_file(obstacle_config, shape)
+            obstacle_mask = parse_geometry_config_file(obstacle_config, shape)
             n_obstacle_elements = np.count_nonzero(obstacle_mask)
             if logger:
                 logger.info(
@@ -155,7 +219,7 @@ def load_geometry_data(
                 f"Combined obstacle and design space masks, {np.count_nonzero(combined_obstacle_mask)} elements restricted"
             )
 
-    return design_space_mask, obstacle_mask, combined_obstacle_mask
+    return design_space_mask, obstacle_mask, combined_obstacle_mask, force_field, support_mask
 
 
 def visualize_design_space_mask(

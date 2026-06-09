@@ -82,6 +82,12 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         help="Output filename for the optimized design",
     )
     output_group.add_argument(
+        "--no_visualization",
+        action="store_true",
+        default=False,
+        help="Export visualizations of results"
+    )
+    output_group.add_argument(
         "--export-stl",
         action="store_true",
         help="Export the final optimization result as an STL file",
@@ -166,6 +172,22 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     obstacle_group = parser.add_argument_group("Obstacle parameters")
     obstacle_group.add_argument(
         "--obstacle-config", type=str, help="Path to a JSON file defining obstacles"
+    )
+
+    # Force related arguments
+    forces_group = parser.add_argument_group("Force parameters")
+    forces_group.add_argument(
+        "--force-config",
+        type=str,
+        help="Path to a JSON file defining forces"
+    )
+
+    # Support related arguments
+    supports_group = parser.add_argument_group("Support parameters")
+    supports_group.add_argument(
+        "--support-config",
+        type=str,
+        help="Path to a JSON file defining supports"
     )
 
     # Logging parameters

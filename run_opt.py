@@ -24,31 +24,21 @@ from pytopo3d.visualization.visualizer import (
 )
 
 
-def run_optimization_api(args:dict, callback=None, stop_event=None):
+def run_optimization_api(args, callback=None, stop_event=None):
     """
     API function to run optimization with pre-built arguments.
     
     Args:
-        args: Pre-built arguments dict (same structure as CLI args)
-        callback: Optional callback function for progress updates
-        stop_event: Optional event to signal stopping of the optimization
+        args: Pre-built arguments List (same structure as CLI args).
+        callback: Optional callback function for progress updates; called after each iteration.
+        stop_event: Optional event to signal stopping of the optimization.
         
     Returns:
-        dict: A dictionary containing the results and metrics of the optimization run.
+        dict: A dictionary containing the results of the optimization run.
     """
-    # Convert the dictionary to a list compatible with parse_args
-    arg_list = []
-    for key, value in args.items():
-        #convert boolean flags: --gpu becomes {--gpu, no value}
-        if isinstance(value, bool):
-            if value:
-                arg_list.append(f"--{key}")
-        else:
-            arg_list.append(f"--{key}")
-            arg_list.append(str(value))
 
     # Call the main function with the provided args
-    result = main(args=parse_args(arg_list), callback=callback, stop_event=stop_event)
+    result = main(args=parse_args(args), callback=callback, stop_event=stop_event)
     
     # Collect results and metrics into a dictionary to return
     output = {
@@ -90,7 +80,7 @@ def main(args=None, callback=None, stop_event=None):
             args.experiment_name = results_mgr.experiment_name
 
         # Load design space and obstacle data
-        design_space_mask, obstacle_mask, combined_obstacle_mask = load_geometry_data(
+        design_space_mask, obstacle_mask, combined_obstacle_mask, force_field, support_mask = load_geometry_data(
             nelx=args.nelx,
             nely=args.nely,
             nelz=args.nelz,
@@ -98,6 +88,8 @@ def main(args=None, callback=None, stop_event=None):
             pitch=getattr(args, "pitch", 1.0),
             invert_design_space=getattr(args, "invert_design_space", False),
             obstacle_config=getattr(args, "obstacle_config", None),
+            force_config=getattr(args, "force_config", None),
+            support_config=getattr(args, "support_config", None),
             experiment_name=args.experiment_name,
             logger=logger,
             results_mgr=results_mgr,
@@ -107,10 +99,6 @@ def main(args=None, callback=None, stop_event=None):
         ndof = 3 * (args.nelx + 1) * (args.nely + 1) * (args.nelz + 1)
 
         # --- Build Boundary Conditions ---
-        # TODO: Allow passing force_field and support_mask from args or config file
-        force_field = None  # Use default for now
-        support_mask = None  # Use default for now
-
         logger.info("Building force vector (using default settings)")
         F = build_force_vector(
             args.nelx, args.nely, args.nelz, ndof, force_field=force_field
@@ -168,19 +156,20 @@ def main(args=None, callback=None, stop_event=None):
         logger.debug(f"Optimization result saved to {result_path}")
 
         # Create visualization of the final result
-        visualize_final_result(
-            nelx=args.nelx,
-            nely=args.nely,
-            nelz=args.nelz,
-            experiment_name=args.experiment_name,
-            disp_thres=args.disp_thres,
-            logger=logger,
-            results_mgr=results_mgr,
-            xPhys=xPhys,
-            combined_obstacle_mask=combined_obstacle_mask,
-            loads_array=loads_array,
-            constraints_array=constraints_array,
-        )
+        if not args.no_visualization:
+            visualize_final_result(
+                nelx=args.nelx,
+                nely=args.nely,
+                nelz=args.nelz,
+                experiment_name=args.experiment_name,
+                disp_thres=args.disp_thres,
+                logger=logger,
+                results_mgr=results_mgr,
+                xPhys=xPhys,
+                combined_obstacle_mask=combined_obstacle_mask,
+                loads_array=loads_array,
+                constraints_array=constraints_array,
+            )
 
         # Create animation if history was captured
         gif_path = None
