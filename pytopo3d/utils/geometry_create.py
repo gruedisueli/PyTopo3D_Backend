@@ -259,12 +259,17 @@ def parse_geometry_config_file(
     # Create a mask with all False (no geometry)
     combined_mask = np.zeros(shape, dtype=bool)
     
-    # Process each geometry in the config
-    geometry = config.get('geometry', [])
-    for geometry_config in geometry:
-        mask = create_geometry_from_config(shape, geometry_config)
-        # Combine with OR operation
-        combined_mask = np.logical_or(combined_mask, mask)
+    if 'geometry' in config:
+        # Process each geometry in the config
+        geometry = config.get('geometry', [])
+        for geometry_config in geometry:
+            mask = create_geometry_from_config(shape, geometry_config)
+            # Combine with OR operation
+            combined_mask = np.logical_or(combined_mask, mask)
+    elif 'mask' in config:
+        mask_1d = np.array(config['mask'], dtype=int) > 0
+        mask_3d_frontend = mask_1d.reshape(shape[1], shape[0], shape[2])
+        combined_mask = np.transpose(mask_3d_frontend, (1, 0, 2))
     
     return combined_mask 
 
@@ -293,45 +298,26 @@ def parse_force_config_file(
     
     # Create an empty force field
     combined_field = np.zeros((shape[0], shape[1], shape[2], 3), dtype=float)
-    geometry = config.get('geometry', [])
-
-    for geometry_config in geometry:
-        # Get basic binary mask for this geometry entry
-        mask = create_geometry_from_config(shape, geometry_config)
-
-        # Determine force vector for this geometry entry.
-        # Supported formats in the geometry_config:
-        # - 'forces': [fx, fy, fz] (list/tuple of length 3)
-        if 'forces' in geometry_config:
-            fval = geometry_config.get('forces')
-            try:
-                fvec = np.asarray(fval, dtype=float)
-            except Exception:
-                raise ValueError(f"Invalid force specification: {fval}")
-
-            if fvec.size == 3:
-                fvec = fvec.reshape((3,))
-            else:
-                raise ValueError("'force' must be a scalar or length-3 sequence")
-        else:
-            continue
-
-        # Add the force vector to all positions where mask is True.
-        # Use boolean indexing to broadcast the 3-component vector.
-        if mask.dtype != bool:
-            mask = mask.astype(bool)
-
-        # Ensure mask shape matches the spatial dimensions
-        if mask.shape != (shape[0], shape[1], shape[2]):
-            raise ValueError(
-                f"Geometry mask shape {mask.shape} does not match expected shape {shape}"
-            )
-
-        # Accumulate forces at masked element positions
-        combined_field[mask, :] += fvec
+    forces = config.get('forces', [])
+    # it is assumed that there are relatively few forces compared to the volume of the design space: iterating point by point
+    for force in forces:
+        if not 'index' in force or not 'vector' in force:
+            raise ValueError("Force item does not contain correct fields ('index', 'vector')")
+        index = int(force['index'])
+        y, x, z = frontend_index_to_pytopo(index, shape[0], shape[2])
+        force_vector = np.array(force['vector'], dtype=float)
+        if len(force_vector) != 3:
+            raise ValueError("Force vector must be 3 dimensional")
+        if not (0 <= y < shape[0] and 0 <= x < shape[1] and 0 <= z < shape[2]):
+            raise ValueError(f"Position ({y},{x},{z}) is out of bounds for shape {shape}")
+        combined_field[y, x, z, :] += force_vector
     
     return combined_field
-        
 
-
-
+def frontend_index_to_pytopo(idx, ny, nz):
+    # Recover (x, y, z) from frontend index
+    z = idx % nz
+    y = (idx // nz) % ny
+    x = idx // (ny * nz)
+    # Return (y, x, z) for PyTopo3D
+    return y, x, z
