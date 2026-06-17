@@ -1,5 +1,12 @@
 # PyTopo3D: 3D SIMP Topology Optimization Framework for Python
 
+[![PyPI](https://img.shields.io/pypi/v/pytopo3d)](https://pypi.org/project/pytopo3d/)
+[![Python](https://img.shields.io/pypi/pyversions/pytopo3d)](https://pypi.org/project/pytopo3d/)
+[![CI](https://github.com/jihoonkim888/PyTopo3D/actions/workflows/ci.yml/badge.svg)](https://github.com/jihoonkim888/PyTopo3D/actions/workflows/ci.yml)
+[![arXiv](https://img.shields.io/badge/arXiv-2504.05604-b31b1b.svg)](https://arxiv.org/abs/2504.05604)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20697949.svg)](https://doi.org/10.5281/zenodo.20697949)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 ![Design optimization with boundary conditions](assets/optimization_animation.gif)
 
 A comprehensive Python implementation of 3D Topology Optimization based on SIMP (Solid Isotropic Material with Penalization) method. Unlike traditional MATLAB implementations, PyTopo3D brings the power of 3D SIMP-based optimization to the Python ecosystem with support for obstacle regions.
@@ -33,9 +40,10 @@ A comprehensive Python implementation of 3D Topology Optimization based on SIMP 
   - [Acknowledgements](#acknowledgements)
   - [Citation](#citation)
   - [Roadmap](#roadmap)
-    - [Version 0.2.0 (Performance \& Interface)](#version-020-performance--interface)
-    - [Version 0.3.0 (Core Functionality Improvements)](#version-030-core-functionality-improvements)
-    - [Version 0.4.0 (Pre-release Stabilization)](#version-040-pre-release-stabilization)
+    - [Version 0.2.0 (Performance \& Coordinate Fix) — released](#version-020-performance--coordinate-fix--released)
+    - [Version 0.3.0 (Force-direction Fix) — released](#version-030-force-direction-fix--released)
+    - [Version 0.4.0 (Core Functionality \& Interface)](#version-040-core-functionality--interface)
+    - [Version 0.5.0 (Pre-release Stabilization)](#version-050-pre-release-stabilization)
     - [Version 1.0.0 (Stable Release)](#version-100-stable-release)
 
 ## Overview
@@ -82,8 +90,6 @@ conda activate pytopo3d
 3. For developers, install in development mode:
 ```bash
 # Basic installation
-cd build-tools
-
 pip install -e .
 
 # With GPU acceleration support
@@ -103,6 +109,36 @@ The main optimization parameters are:
 - `disp_thres`: Display threshold for 3D visualization (elements with density > disp_thres are shown) (default: 0.5)
 - `tolx`: Convergence tolerance on design change (default: 0.01)
 - `maxloop`: Maximum number of iterations (default: 2000)
+
+### Coordinate System and Axis Conventions
+
+PyTopo3D uses a right-handed Cartesian `(x, y, z)` convention with `z` as the vertical axis. `x`, `y`, `z` mean the same thing across the whole public surface:
+
+- `nelx`, `nely`, `nelz` count elements along x, y, z.
+- JSON obstacle `center`/`size` and `force_field` components `[Fx, Fy, Fz]` are in `(x, y, z)` order.
+- The default load is a downward `-z` force along the far-x bottom edge (`x = nelx`, `z = 0`, spanning all `y`); the default support fixes the entire `x = 0` face.
+
+Internally, density and mask arrays are stored as `(nely, nelx, nelz)` — the y-axis comes first — a layout inherited from the MATLAB `top3d` reference. So when you build a mask by hand, index it as `mask[y, x, z]`. STL import and export transpose the first two axes for you, so an STL's x-axis maps to the domain's `x` (`nelx`).
+
+> **Changed in 0.2.0:** STL import/export now map an STL's x-axis to the domain's x-axis. Before 0.2.0 they were transposed, so **any** STL import/export workflow now produces different results (identical to 0.1.x only for `x`<->`y`-symmetric parts); non-STL usage is unchanged. To reproduce pre-0.2.0 results, pin `pytopo3d==0.1.2`. 0.2.0 emits a one-time warning on first STL use. See the [CHANGELOG](CHANGELOG.md).
+
+#### Default load direction vs MATLAB `top3d`
+
+The default load is `-z` (z-up), consistent with the CAD/STL convention used everywhere else in PyTopo3D. The MATLAB `top3d` reference instead loads in `-y`: its vertical axis is `y`, inherited from the 2D `top88`/`top99` lineage. The two default cantilevers are therefore related by a `y` <-> `z` swap (PyTopo3D bends in the `x-z` plane, `top3d` bends in `x-y`). PyTopo3D keeps `-z` on purpose, since z-up is the CAD/STL convention and stays internally consistent with the rest of the framework.
+
+To set up a `top3d`-style cantilever (a downward `-y` load at the free-end tip, bending in the `x-y` plane), pass a `force_field`. The default supports already match `top3d`, so only the load differs:
+
+```python
+import numpy as np
+from pytopo3d.core.optimizer import top3d
+
+nelx, nely, nelz = 60, 20, 10
+force_field = np.zeros((nely, nelx, nelz, 3))
+force_field[0, nelx - 1, :, 1] = -1.0  # -y load on the far-x tip elements (y=0 row, all z)
+result = top3d(nelx, nely, nelz, 0.3, 3.0, 1.5, 0.5, force_field=force_field)
+```
+
+Note: `force_field` is **element**-based — `build_force_vector` spreads each element's force over its 8 corner nodes — so this loads the tip *elements* rather than the exact nodal edge that MATLAB `top3d` uses (the total magnitude also differs). It reproduces the load direction and bending plane, which is what matters for orientation comparison, not `top3d`'s exact nodal load.
 
 ### Command-line Interface
 
@@ -322,12 +358,10 @@ To use GPU acceleration, install PyTopo3D with GPU support:
 pip install pytopo3d[gpu]
 
 # For development installation
-cd build-tools
-
 pip install -e ".[gpu]"
 ```
 
-This will install the required `cupy` dependency. Make sure to use the appropriate CUDA version that matches your system (e.g., `cupy-cuda11x` for CUDA 11.x, `cupy-cuda12x` for CUDA 12.x).
+This installs CuPy with the `[ctk]` extra, which bundles the CUDA toolkit (libraries and headers) as wheels so GPU acceleration works without a separate system CUDA installation. The `[gpu]` extra targets CUDA 12.x; if you are on CUDA 11.x, install `cupy-cuda11x[ctk]` manually instead.
 
 #### Enabling GPU Acceleration
 
@@ -394,10 +428,10 @@ This code is adapted from [Liu & Tovar's MATLAB code](https://www.top3d.app/) fo
 
 If you use PyTopo3D in your research or work, please cite our paper on ArXiv: [PyTopo3D: A Python Framework for 3D SIMP-based Topology Optimization](https://arxiv.org/abs/2504.05604)
 
-> Kim, J. & Kang, N. (2024). PyTopo3D: A Python Framework for 3D SIMP-based Topology Optimization. arXiv preprint arXiv:2504.05604.
+> Kim, J. & Kang, N. (2025). PyTopo3D: A Python Framework for 3D SIMP-based Topology Optimization. arXiv preprint arXiv:2504.05604.
 
 ```bibtex
-@article{kim2025pytopo3d
+@article{kim2025pytopo3d,
       title={PyTopo3D: A Python Framework for 3D SIMP-based Topology Optimization}, 
       author={Jihoon Kim and Namwoo Kang},
       journal={arXiv preprint arXiv:2504.05604},
@@ -411,17 +445,21 @@ This paper provides a detailed explanation of the implementation, theoretical fo
 
 Below is the roadmap for future releases of PyTopo3D:
 
-### Version 0.2.0 (Performance & Interface)
+### Version 0.2.0 (Performance & Coordinate Fix) — released
 - ✅ **GPU Acceleration**: CUDA acceleration via CuPy for faster optimization on NVIDIA GPUs
-- **Interactive GUI**: Basic graphical user interface for parameter configuration and visualization (replacing current `matplotlib`-based visualization which slows down with high voxel counts)
+- ✅ **STL coordinate-convention fix**: consistent `x`/`y` axis handling on STL import/export (see [CHANGELOG](CHANGELOG.md))
 
-### Version 0.3.0 (Core Functionality Improvements)
-- **Optimization for Mass Minimization**
-- **Improved Convergence Methods**
+### Version 0.3.0 (Force-direction Fix) — released
+- ✅ **`force_field` x/y transpose fix**: `Fx` and `Fy` now act along the correct axes (a regression where `Fx` acted along the `y` axis); see [CHANGELOG](CHANGELOG.md). Breaking only for `force_field` loads carrying distinct `Fx`/`Fy`; default `-z` loads and the golden master are unchanged.
 
-### Version 0.4.0 (Pre-release Stabilization)
+### Version 0.4.0 (Core Functionality & Interface)
+- **Interactive GUI**: Basic graphical user interface for parameter configuration and visualization (replacing the current `matplotlib`-based visualization which slows down with high voxel counts)
+- **Optimization for Mass Minimization** — minimize mass/volume under a performance (compliance) constraint
+- **Improved Convergence Methods** *(conditional)* — penalty continuation / projection, brought in alongside mass minimization only where an observed need (residual gray regions, poor local minima) justifies them, rather than as a standalone change
+
+### Version 0.5.0 (Pre-release Stabilization)
 - **API Stabilization**: Finalize API design for 1.0 release
-- **Comprehensive Testing**: Extensive test suite for all components (probably with `pytest`)
+- **Comprehensive Testing**: Extensive test suite for all components (probably with `pytest`). *An initial `pytest` suite (CPU core + packaging guards) and GitHub Actions CI landed early, in 0.1.1.*
 - **Performance Benchmarking**: Establish baseline performance metrics
 
 ### Version 1.0.0 (Stable Release)
