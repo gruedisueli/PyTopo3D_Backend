@@ -108,24 +108,25 @@ def main(args=None, callback=None, stop_event=None):
             args.nelx, args.nely, args.nelz, ndof, support_mask=support_mask
         )
 
-        # Create visualization arrays from actual BCs
-        loads_array, constraints_array = create_bc_visualization_arrays(
-            args.nelx, args.nely, args.nelz, ndof, F, fixeddof0
-        )
-        logger.info("Generated boundary condition visualization arrays")
+        if not args.no_visualization:
+            # Create visualization arrays from actual BCs
+            loads_array, constraints_array = create_bc_visualization_arrays(
+                args.nelx, args.nely, args.nelz, ndof, F, fixeddof0
+            )
+            logger.info("Generated boundary condition visualization arrays")
 
-        # Create and save initial visualization
-        visualize_initial_setup(
-            nelx=args.nelx,
-            nely=args.nely,
-            nelz=args.nelz,
-            loads_array=loads_array,
-            constraints_array=constraints_array,
-            experiment_name=args.experiment_name,
-            logger=logger,
-            results_mgr=results_mgr,
-            combined_obstacle_mask=combined_obstacle_mask,
-        )
+            # Create and save initial visualization
+            visualize_initial_setup(
+                nelx=args.nelx,
+                nely=args.nely,
+                nelz=args.nelz,
+                loads_array=loads_array,
+                constraints_array=constraints_array,
+                experiment_name=args.experiment_name,
+                logger=logger,
+                results_mgr=results_mgr,
+                combined_obstacle_mask=combined_obstacle_mask,
+            )
 
         # Run the optimization - Passing force_field and support_mask
         xPhys, history, run_time = execute_optimization(
