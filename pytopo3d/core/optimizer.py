@@ -74,6 +74,11 @@ def top3d(
     elif gpu:
         logger.info("Using GPU acceleration with CuPy.")
 
+    if gpu:
+        cp.get_default_memory_pool().free_all_blocks()
+        cp.get_default_pinned_memory_pool().free_all_blocks()
+    
+
     E0, Emin, nu = 1.0, 1e-9, 0.3
     nele = nelx * nely * nelz
     ndof = 3 * (nelx + 1) * (nely + 1) * (nelz + 1)
@@ -264,7 +269,7 @@ def top3d(
             history["compliance_history"].append(c)
 
         logger.info(
-            f"Iter {loop:4d}: Obj={c:9.4f}, ΔObj={c_delta:9.4f}, "
+            f"Iter {loop:4d}: Obj={c:9.4f}, dObj={c_delta:9.4f}, "
             f"Vol={current_vol:6.3f}, change={change:6.3f}, "
             f"time={iter_t:5.2f}s"
         )
