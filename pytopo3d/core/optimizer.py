@@ -281,7 +281,7 @@ def top3d(
         )
         if callback is not None:
             #send current iteration data back
-            callback(cp.asnumpy(xPhys_gpu) if gpu else xPhys.copy())
+            callback(change, cp.asnumpy(xPhys_gpu) if gpu else xPhys.copy())
 
         if stop_event is not None and stop_event.is_set():
             logger.info("Stop event detected – terminating optimization loop.")
